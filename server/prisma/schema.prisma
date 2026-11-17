@@ -1,0 +1,170 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  citizen
+  admin
+  team
+}
+
+enum Status {
+  Pending
+  Approved
+  Assigned
+  InProgress
+  Resolved
+  Rejected
+}
+
+enum Priority {
+  High
+  Medium
+  Low
+}
+
+enum Severity {
+  low
+  medium
+  high
+}
+
+model User {
+  id            Int                      @id @default(autoincrement())
+  name          String
+  email         String                   @unique
+  phone         String
+  address       String
+  passwordHash  String
+  role          Role                     @default(citizen)
+  active        Boolean                  @default(true)
+  teamId        Int? // set for collection-team members
+  team          CollectionTeam?          @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  complaints    Complaint[]
+  notifications Notification[]
+  statusChanges ComplaintStatusHistory[]
+  notes         AdminNote[]
+  assignments   TeamAssignment[]
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+
+  @@index([role])
+  @@index([teamId])
+}
+
+model WasteCategory {
+  id         Int         @id @default(autoincrement())
+  name       String      @unique
+  slug       String      @unique
+  active     Boolean     @default(true)
+  complaints Complaint[]
+}
+
+model CollectionTeam {
+  id          Int              @id @default(autoincrement())
+  name        String           @unique
+  leader      String
+  phone       String
+  email       String           @unique
+  area        String
+  available   Boolean          @default(true)
+  members     User[]
+  complaints  Complaint[]
+  assignments TeamAssignment[]
+  createdAt   DateTime         @default(now())
+}
+
+model Complaint {
+  id                Int                      @id @default(autoincrement())
+  code              String                   @unique // public ID, e.g. WM-2026-0007
+  title             String
+  description       String
+  categoryId        Int
+  category          WasteCategory            @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  address           String
+  latitude          Float
+  longitude         Float
+  photoPath         String?
+  contact           String
+  severity          Severity                 @default(low)
+  priority          Priority
+  suggestedPriority Priority
+  status            Status                   @default(Pending)
+  citizenId         Int
+  citizen           User                     @relation(fields: [citizenId], references: [id], onDelete: Restrict)
+  teamId            Int? // team currently responsible
+  team              CollectionTeam?          @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  resolvedAt        DateTime?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  history           ComplaintStatusHistory[]
+  notes             AdminNote[]
+  assignments       TeamAssignment[]
+  notifications     Notification[]
+
+  @@index([status])
+  @@index([priority])
+  @@index([categoryId])
+  @@index([citizenId])
+  @@index([teamId])
+  @@index([createdAt])
+}
+
+model TeamAssignment {
+  id           Int            @id @default(autoincrement())
+  complaintId  Int
+  complaint    Complaint      @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  teamId       Int
+  team         CollectionTeam @relation(fields: [teamId], references: [id], onDelete: Restrict)
+  assignedById Int?
+  assignedBy   User?          @relation(fields: [assignedById], references: [id], onDelete: SetNull)
+  active       Boolean        @default(true) // false once reassigned
+  assignedAt   DateTime       @default(now())
+
+  @@index([complaintId])
+  @@index([teamId])
+}
+
+model ComplaintStatusHistory {
+  id          Int       @id @default(autoincrement())
+  complaintId Int
+  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  fromStatus  Status?
+  toStatus    Status
+  changedById Int?
+  changedBy   User?     @relation(fields: [changedById], references: [id], onDelete: SetNull)
+  remarks     String?
+  createdAt   DateTime  @default(now())
+
+  @@index([complaintId])
+}
+
+model Notification {
+  id          Int        @id @default(autoincrement())
+  userId      Int
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  complaintId Int?
+  complaint   Complaint? @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  text        String
+  read        Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+
+  @@index([userId, read])
+}
+
+model AdminNote {
+  id          Int       @id @default(autoincrement())
+  complaintId Int
+  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  authorId    Int
+  author      User      @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  text        String
+  createdAt   DateTime  @default(now())
+
+  @@index([complaintId])
+}
