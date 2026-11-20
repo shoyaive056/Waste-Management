@@ -6,6 +6,7 @@ import { errorHandler, notFound } from './middleware/error.js';
 import routes from './routes/index.js';
 
 const app = express();
+app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } })); // secure headers; allow the client to show /uploads images
 app.use(cors({ origin: env.clientUrl, credentials: true }));
